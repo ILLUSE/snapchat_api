@@ -7,7 +7,7 @@ app = Flask(__name__)
 CORS(app)
 
 @app.route('/birthday', methods=['POST'])
-def student_query():
+def birthday_query():
     try:
         request_json = request.get_json()
         user_input = request_json.get('user_id')

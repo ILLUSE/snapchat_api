@@ -7,7 +7,7 @@ app = Flask(__name__)
 CORS(app)
 
 @app.route('/hearted-chatlist', methods=['POST'])
-def student_query():
+def hearted_chatlist_query():
     request_json = request.get_json()
     user_input = request_json['user_id']
     conn = pymysql.connect(host='localhost', port=3306, user='root',

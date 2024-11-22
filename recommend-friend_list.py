@@ -7,7 +7,7 @@ app = Flask(__name__)
 CORS(app)
 
 @app.route('/recommend-friend_list', methods=['POST'])
-def student_query():
+def recommend_friend_query():
     request_json = request.get_json()
     user_input = request_json['user_id']
     cnt_limit_input = request_json['cnt_limit']

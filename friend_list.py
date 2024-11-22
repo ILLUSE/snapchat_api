@@ -5,7 +5,7 @@ import pandas as pd
 app = Flask(__name__)
 
 @app.route('/friend_list', methods=['POST'])
-def student_query():
+def friend_list_query():
     request_json = request.get_json()
     user_input = request_json['user_id']
     conn = pymysql.connect(host='localhost', port=3306, user='root',
