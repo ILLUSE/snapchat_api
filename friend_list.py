@@ -1,8 +1,10 @@
 from flask import Flask, request
 import pymysql
 import pandas as pd
+from flask_cors import CORS
 
 app = Flask(__name__)
+CORS(app)
 
 @app.route('/friend_list', methods=['POST'])
 def friend_list_query():
