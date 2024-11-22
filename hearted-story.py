@@ -5,7 +5,7 @@ import pymysql
 app = Flask(__name__)
 CORS(app)
 
-@app.route('/heart_story', methods=['POST'])
+@app.route('/hearted-story', methods=['POST'])
 def heart_story():
     conn = None
     cursor = None
