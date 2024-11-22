@@ -1,47 +1,42 @@
 from flask import Flask, request, jsonify
-from flask_sqlalchemy import SQLAlchemy
+from flask_cors import CORS
+import pymysql
 
-# Flask 앱 초기화
 app = Flask(__name__)
-
-# 데이터베이스 연결 설정
-app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql+pymysql://root:1234@localhost/snapchat'
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-db = SQLAlchemy(app)
+CORS(app)
 
 @app.route('/delete_account', methods=['POST'])
 def delete_account():
-    # Postman에서 전달된 입력값 가져오기
-    data = request.json
-    user_email = data.get('user_email')
-    password = data.get('password')
-
-    # 사용자 계정 삭제 전 확인 쿼리
-    select_query = """
-        SELECT user_id, name
-        FROM T_user
-        WHERE user_email = %s AND password = %s;
-    """
-
-    # 사용자 계정 삭제 쿼리
-    delete_query = """
-        DELETE FROM T_user
-        WHERE user_email = %s AND password = %s;
-    """
-
     try:
-        # 데이터베이스 연결
-        connection = db.engine.raw_connection()
-        cursor = connection.cursor()
+        request_json = request.get_json()
+        user_email = request_json.get('user_email')
+        password = request_json.get('password')
 
-        # 계정 존재 여부 확인
+        conn = pymysql.connect(
+            host='localhost',
+            port=3306,
+            user='root',
+            password='qwerty1234',
+            db='snapchat'
+        )
+        cursor = conn.cursor()
+
+        select_query = """
+            SELECT user_id, name
+            FROM T_user
+            WHERE user_email = %s AND password = %s;
+        """
+        delete_query = """
+            DELETE FROM T_user
+            WHERE user_email = %s AND password = %s;
+        """
+
         cursor.execute(select_query, (user_email, password))
         user = cursor.fetchone()
 
         if user:
-            # 계정 삭제 실행
             cursor.execute(delete_query, (user_email, password))
-            connection.commit()
+            conn.commit()
 
             if cursor.rowcount > 0:
                 return jsonify({
@@ -61,9 +56,10 @@ def delete_account():
         return jsonify({"error": str(e)}), 500
 
     finally:
-        cursor.close()
-        connection.close()
+        if cursor:
+            cursor.close()
+        if conn:
+            conn.close()
 
 if __name__ == '__main__':
     app.run(debug=True)
-

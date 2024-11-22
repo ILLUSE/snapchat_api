@@ -10,20 +10,17 @@ CORS(app)
 def story_query():
     conn = None
     try:
-        # Debug incoming request
         print("Request data:", request.data)
         print("Request headers:", request.headers)
 
-        # Try parsing JSON
         try:
-            request_json = request.get_json(force=True)  # Force parsing JSON even if header is incorrect
+            request_json = request.get_json(force=True) 
         except Exception:
             return jsonify({"error": "Failed to decode JSON object. Ensure the request body contains valid JSON."}), 400
 
         if not request_json:
             return jsonify({"error": "Invalid or empty JSON payload"}), 400
 
-        # MySQL 연결
         try:
             conn = pymysql.connect(
                 host='localhost',
@@ -35,7 +32,6 @@ def story_query():
         except pymysql.MySQLError as e:
             return jsonify({"error": f"MySQL Connection Error: {str(e)}"}), 500
 
-        # SQL 쿼리 실행
         sql = """
         SELECT h.name AS name, s.story_id, sp.url AS story_url, sp.update_time AS upload_time
         FROM T_user_friend_heart h
@@ -47,11 +43,9 @@ def story_query():
         """
         df = pd.read_sql_query(sql, conn)
 
-        # 결과 확인
         if df.empty:
             return jsonify({"message": "No results found"}), 200
 
-        # 결과 변환
         df_dict = {
             "name": df['name'].tolist(),
             "story_url": df['story_url'].tolist(),
