@@ -10,7 +10,7 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False  # 성능 최적화를 위�
 db = SQLAlchemy(app)
 
 # 비밀번호 변경 라우트 정의
-@app.route('/update_password', methods=['PUT'])
+@app.route('/update_password', methods=['POST'])
 def update_password():
     # Postman에서 전달된 입력값 가져오기
     data = request.json
@@ -48,3 +48,4 @@ def update_password():
 
 if __name__ == '__main__':
     app.run(debug=True)
+
