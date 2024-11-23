@@ -15,15 +15,17 @@ DB_CONFIG = {
     "db": "snapchat",          # 데이터베이스 이름
 }
 
-@app.route('/after-login-page', methods=['POST'])
-def get_friends_and_user_info():
+
+@app.route('/user-info', methods=['POST'])
+def get_user_info_and_friends():
     try:
         # 클라이언트 요청에서 user_id 가져오기
         request_data = request.get_json()
         user_id = request_data.get("user_id")
-        
+        cnt_limit = request_data.get("cnt_limit", 3)  # 추천 친구 수 제한
+
         conn = pymysql.connect(**DB_CONFIG)
-        
+
         # 로그인한 사용자 정보 쿼리
         user_query = """
         SELECT name, 
@@ -61,6 +63,48 @@ def get_friends_and_user_info():
         WHERE f.user_id = %s;
         """
 
+        # 추천 친구 정보 쿼리 1: 나를 친구 추가한 사람
+        recommend_to_me_query = """
+        SELECT DISTINCT u.name AS name, IFNULL(pp.url, "images_0.png") AS url
+        FROM T_friend f
+        JOIN T_user u ON f.user_id = u.user_id
+        LEFT JOIN T_profile_picture_update ppu ON u.user_id = ppu.user_id
+        LEFT JOIN T_profile_picture pp ON ppu.max_pic_id = pp.pic_id
+        WHERE f.friend_id = %s
+        AND f.user_id NOT IN (
+            SELECT friend_id
+            FROM T_friend
+            WHERE user_id = %s
+        )
+        ORDER BY u.name;
+        """
+
+        # 추천 친구 정보 쿼리 2: 인기 친구 추천
+        recommend_popular_query = """
+        SELECT DISTINCT u.name AS name, IFNULL(pp.url, "images_0.png") AS url, a.cnt
+        FROM (
+            SELECT friend_id, COUNT(*) cnt
+            FROM T_friend
+            WHERE user_id IN (
+                SELECT friend_id
+                FROM T_friend
+                WHERE user_id = %s
+            )
+            GROUP BY friend_id
+        ) a
+        JOIN T_user u ON a.friend_id = u.user_id
+        LEFT JOIN T_profile_picture_update ppu ON u.user_id = ppu.user_id
+        LEFT JOIN T_profile_picture pp ON ppu.max_pic_id = pp.pic_id
+        WHERE a.friend_id NOT IN (
+            SELECT friend_id
+            FROM T_friend
+            WHERE user_id = %s
+        )
+        AND a.cnt >= %s
+        AND a.friend_id != %s
+        ORDER BY cnt DESC;
+        """
+        
         # 사용자 정보 가져오기
         user_df = pd.read_sql_query(user_query, conn, params=[user_id, user_id])
         if user_df.empty:
@@ -73,11 +117,23 @@ def get_friends_and_user_info():
         friends_df = pd.read_sql_query(friends_query, conn, params=[user_id])
         friends_data = friends_df.to_dict(orient="records") if not friends_df.empty else []
 
+        # 추천 친구: 나를 친구로 추가한 사람
+        recommend_to_me_df = pd.read_sql_query(recommend_to_me_query, conn, params=[user_id, user_id])
+        recommend_to_me = recommend_to_me_df.to_dict(orient="records") if not recommend_to_me_df.empty else []
+
+        # 추천 친구: 인기 친구
+        recommend_popular_df = pd.read_sql_query(recommend_popular_query, conn, params=[user_id, user_id, cnt_limit, user_id])
+        recommend_popular = recommend_popular_df.to_dict(orient="records") if not recommend_popular_df.empty else []
+
         # JSON 응답 생성
         return jsonify({
             "userName": user_name,
             "userProfilePicture": user_profile_picture or "default-profile.png",  # 기본 프로필 이미지 설정
-            "friends": friends_data
+            "friends": friends_data,
+            "recommendations": {
+                "to_me": recommend_to_me,
+                "popular": recommend_popular
+            }
         }), 200
 
     except Exception as e:
