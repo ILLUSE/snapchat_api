@@ -15,7 +15,7 @@ def hearted_chatlist_query():
                                password='qwerty1234', db='snapchat')
         sql = """
         SELECT IFNULL(cr.name, IF(a.cnt > 3, a.names_3_concat, a.names_3)) AS names, 
-            a.cnt, ch.chat, 
+            a.cnt+1 as cnt, ch.chat, 
             DATE_FORMAT(ch.chat_time, '%%m-%%d %%p %%h:%%i') AS chat_time
         FROM (
         SELECT 
