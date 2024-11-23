@@ -1,69 +1,75 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 import pymysql
+import pandas as pd
 
 app = Flask(__name__)
-CORS(app)
+CORS(app, resources={r"/hearted-story": {"origins": "*"}})
+
+@app.route('/')
+def index():
+    return "Flask app is running!"
 
 @app.route('/hearted-story', methods=['POST'])
-def heart_story():
+def story_query():
     conn = None
-    cursor = None
     try:
-        request_json = request.get_json()
-        start_time = request_json.get('start_time', '2024-11-21 12:00:00')  
-        end_time = request_json.get('end_time', '2024-11-22 12:00:00')      
+        print("Request data:", request.data)
+        print("Request headers:", request.headers)
 
-        conn = pymysql.connect(
-            host='localhost',
-            port=3306,
-            user='root',
-            password='qwerty1234',
-            db='snapchat',
-            cursorclass=pymysql.cursors.DictCursor  
-        )
-        cursor = conn.cursor()
+        try:
+            request_json = request.get_json(force=True) 
+            start_time = request_json.get('start_time')  
+            end_time = request_json.get('end_time')  
 
-        query = """
-        SELECT 
-            s.user_id AS friend_id,
-            s.story_id,
-            sp.url AS story_url,
-            sp.update_time
-        FROM 
-            T_user_friend_heart h
-        JOIN 
-            T_story s ON h.user_id = s.user_id
-        JOIN 
-            T_story_picture sp ON s.story_id = sp.story_id
-        WHERE 
-            sp.update_time >= %s 
-            AND sp.update_time < %s
-        ORDER BY 
-            sp.update_time DESC;
+            if not start_time or not end_time:
+                return jsonify({"error": "Missing 'start_time' or 'end_time' in the request body"}), 400
+        except Exception as e:
+            return jsonify({"error": f"Failed to decode JSON object: {str(e)}"}), 400
+
+        if not request_json:
+            return jsonify({"error": "Invalid or empty JSON payload"}), 400
+
+        try:
+            conn = pymysql.connect(
+                host='localhost',
+                port=3306,
+                user='root',
+                password='qwerty1234',
+                db='snapchat'
+            )
+        except pymysql.MySQLError as e:
+            return jsonify({"error": f"MySQL Connection Error: {str(e)}"}), 500
+
+        sql = """
+        SELECT h.name AS name, s.story_id, sp.url AS story_url, sp.update_time AS upload_time
+        FROM T_user_friend_heart h
+        JOIN T_story s ON h.user_id = s.user_id
+        JOIN T_story_picture sp ON s.story_id = sp.story_id
+        WHERE sp.update_time >= %s 
+        AND sp.update_time < %s
+        ORDER BY sp.update_time DESC;
         """
-        cursor.execute(query, (start_time, end_time))
-        results = cursor.fetchall()
+        df = pd.read_sql_query(sql, conn, params=(start_time, end_time))
 
-        stories = []
-        for row in results:
-            stories.append({
-                "friend_id": row['friend_id'],
-                "story_id": row['story_id'],
-                "story_url": row['story_url'],
-                "update_time": row['update_time'].strftime('%Y-%m-%d %H:%M:%S') 
-            })
+        if df.empty:
+            return jsonify({"message": "No results found"}), 200
 
-        return jsonify({"stories": stories}), 200
+        df_dict = {
+            "name": df['name'].tolist(),
+            "story_url": df['story_url'].tolist(),
+            "upload_time": df['upload_time'].tolist(),
+        }
+        response = jsonify(df_dict)
+        response.headers.add("Access-Control-Allow-Origin", "*")
+        return response
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
     finally:
-        if cursor:
-            cursor.close()
         if conn:
             conn.close()
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     app.run(debug=True)

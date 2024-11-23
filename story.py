@@ -4,7 +4,7 @@ import pymysql
 import pandas as pd
 
 app = Flask(__name__)
-CORS(app)
+CORS(app, resources={r"/story": {"origins": "*"}})
 
 @app.route('/story', methods=['POST'])
 def story_query():
@@ -15,8 +15,14 @@ def story_query():
 
         try:
             request_json = request.get_json(force=True) 
-        except Exception:
-            return jsonify({"error": "Failed to decode JSON object. Ensure the request body contains valid JSON."}), 400
+            start_time = request_json.get('start_time')  # Fixed syntax
+            end_time = request_json.get('end_time')  # Fixed syntax
+
+            # Validate the received data
+            if not start_time or not end_time:
+                return jsonify({"error": "Missing 'start_time' or 'end_time' in the request body"}), 400
+        except Exception as e:
+            return jsonify({"error": f"Failed to decode JSON object: {str(e)}"}), 400
 
         if not request_json:
             return jsonify({"error": "Invalid or empty JSON payload"}), 400
@@ -33,15 +39,15 @@ def story_query():
             return jsonify({"error": f"MySQL Connection Error: {str(e)}"}), 500
 
         sql = """
-        SELECT h.name AS name, s.story_id, sp.url AS story_url, sp.update_time AS upload_time
-        FROM T_user_friend_heart h
-        JOIN T_story s ON h.user_id = s.user_id
+        SELECT u.name AS name, s.story_id, sp.url AS story_url, sp.update_time AS upload_time
+        FROM T_story s 
         JOIN T_story_picture sp ON s.story_id = sp.story_id
-        WHERE sp.update_time >= '2024-11-21 12:00:00' 
-        AND sp.update_time < '2024-11-22 12:00:00'
+        JOIN T_user u ON s.user_id = u.user_id
+        WHERE sp.update_time >= %s 
+        AND sp.update_time < %s
         ORDER BY sp.update_time DESC;
         """
-        df = pd.read_sql_query(sql, conn)
+        df = pd.read_sql_query(sql, conn, params=(start_time, end_time))
 
         if df.empty:
             return jsonify({"message": "No results found"}), 200
@@ -51,7 +57,9 @@ def story_query():
             "story_url": df['story_url'].tolist(),
             "upload_time": df['upload_time'].tolist(),
         }
-        return jsonify(df_dict)
+        response = jsonify(df_dict)
+        response.headers.add("Access-Control-Allow-Origin", "*")
+        return response
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
