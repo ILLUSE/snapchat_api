@@ -14,41 +14,56 @@ def hearted_chatlist_query():
         conn = pymysql.connect(host='localhost', port=3306, user='root',
                                password='qwerty1234', db='snapchat')
         sql = """
-        SELECT IFNULL(cr.name, IF(a.cnt > 3, a.names_3_concat, a.names_3)) AS names, 
-            a.cnt+1 as cnt, ch.chat, 
+        SELECT DISTINCT
+            IFNULL(cr.name, IF(a.cnt > 3, a.names_3_concat, a.names_3)) AS names, 
+            a.cnt + 1 AS member_cnt, 
+            ch.chat, 
+            ch.chat_id, -- Added this column
+            CASE 
+                WHEN ch.user_id != %s THEN (
+                    SELECT COUNT(*) 
+                    FROM T_chat c 
+                    WHERE c.room_id = ch.room_id 
+                    AND c.chat_id <= b.chat_id
+                      AND c.user_id != %s
+                    )
+                ELSE 0
+            END AS chat_cnt,
             DATE_FORMAT(ch.chat_time, '%%m-%%d %%p %%h:%%i') AS chat_time
         FROM (
-        SELECT 
-            chm.room_id, 
-            COUNT(*) AS cnt, 
-            GROUP_CONCAT(u.name) AS names_full,
-            SUBSTRING_INDEX(GROUP_CONCAT(u.name), ',', 3) AS names_3,
-            CONCAT(SUBSTRING_INDEX(GROUP_CONCAT(u.name), ',', 3), ', ...') AS names_3_concat
-        FROM T_chat_member chm
-        JOIN T_user u ON chm.user_id = u.user_id
-        JOIN T_user_friend_heart ufh ON ufh.user_id = chm.user_id  
-        WHERE u.user_id != %s
-        GROUP BY chm.room_id
+            SELECT 
+                chm.room_id, 
+                COUNT(*) AS cnt, 
+                GROUP_CONCAT(u.name) AS names_full,
+                SUBSTRING_INDEX(GROUP_CONCAT(u.name), ',', 3) AS names_3,
+                CONCAT(SUBSTRING_INDEX(GROUP_CONCAT(u.name), ',', 3), ', ...') AS names_3_concat
+            FROM T_chat_member chm
+            JOIN T_user u ON chm.user_id = u.user_id 
+            WHERE u.user_id != %s
+            GROUP BY chm.room_id
         ) a
         JOIN (
-        SELECT 
-            room_id, 
-            MAX(chat_id) AS chat_id
-        FROM T_chat
-        GROUP BY room_id
+            SELECT 
+                room_id, 
+                MAX(chat_id) AS chat_id
+            FROM T_chat
+            GROUP BY room_id
         ) b ON a.room_id = b.room_id
         JOIN T_chat ch ON b.chat_id = ch.chat_id
         JOIN T_chat_room cr ON ch.room_id = cr.room_id
+        JOIN T_chat_member chm ON ch.room_id = chm.room_id
+        JOIN T_user_friend_heart ufh ON ufh.user_id = chm.user_id  
         ORDER BY ch.chat_id DESC;
-        """% (user_input)
+        """% (user_input, user_input, user_input)
         
         df = pd.read_sql_query(sql, conn)
         conn.close()
 
         df_dict = {
             "room_name": df['names'].tolist(), 
-            "count": df['cnt'].tolist(), 
+            "member_cnt": df['member_cnt'].tolist(), 
             "chat": df['chat'].tolist(), 
+            "chat_cnt": df['chat_cnt'].tolist(), 
             "chat_time": df['chat_time'].tolist()
         }
         return df_dict
