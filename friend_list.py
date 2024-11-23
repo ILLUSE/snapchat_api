@@ -18,13 +18,14 @@ def friend_list_query():
         conn = pymysql.connect(host='localhost', port=3306, user='root',
                                password='qwerty1234', db='snapchat')
 
-        # Corrected SQL query
+        # SQL query with story count
         sql = """
         SELECT 
             u.name AS name, 
             IFNULL(pp.url, "images/0.png") AS url, 
             IF(a.story_upload IS NOT NULL, 1, 0) AS has_story,
-            a.story_url
+            a.story_url,
+            IFNULL(a.story_count, 0) AS story_count
         FROM T_friend f
         JOIN T_user u ON f.friend_id = u.user_id
         LEFT JOIN T_profile_picture_update ppu ON u.user_id = ppu.user_id
@@ -33,7 +34,8 @@ def friend_list_query():
             SELECT 
                 s.user_id, 
                 MAX(sp.update_time) AS story_upload, 
-                MAX(sp.url) AS story_url
+                MAX(sp.url) AS story_url,
+                COUNT(sp.story_id) AS story_count
             FROM T_story s
             JOIN T_story_picture sp ON s.story_id = sp.story_id
             WHERE sp.update_time >= %s
@@ -52,7 +54,8 @@ def friend_list_query():
             "name": df['name'].tolist(), 
             "image": df['url'].tolist(), 
             "has_story": df['has_story'].tolist(),
-            "story_url": df['story_url'].tolist()
+            "story_url": df['story_url'].tolist(),
+            "story_count": df['story_count'].tolist()
         }
         return jsonify(df_dict)
 
