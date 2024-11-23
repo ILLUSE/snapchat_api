@@ -16,7 +16,7 @@ DB_CONFIG = {
 }
 
 
-@app.route('/user-info', methods=['POST'])
+@app.route('/after-login-page', methods=['POST'])
 def get_user_info_and_friends():
     try:
         # 클라이언트 요청에서 user_id 가져오기
